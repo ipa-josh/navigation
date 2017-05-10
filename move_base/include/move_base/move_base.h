@@ -157,6 +157,8 @@ namespace move_base {
       void resetState();
 
       void goalCB(const geometry_msgs::PoseStamped::ConstPtr& goal);
+      
+      void updatePathCB(const nav_msgs::PathConstPtr& msg);
 
       void planThread();
 
@@ -190,8 +192,8 @@ namespace move_base {
       double planner_frequency_, controller_frequency_, inscribed_radius_, circumscribed_radius_;
       double planner_patience_, controller_patience_;
       double conservative_reset_dist_, clearing_radius_;
-      ros::Publisher current_goal_pub_, vel_pub_, action_goal_pub_;
-      ros::Subscriber goal_sub_;
+      ros::Publisher current_goal_pub_, vel_pub_, action_goal_pub_, final_pub_;
+      ros::Subscriber goal_sub_, goal_path_sub_;
       ros::ServiceServer make_plan_srv_, clear_costmaps_srv_;
       bool shutdown_costmaps_, clearing_rotation_allowed_, recovery_behavior_enabled_;
       double oscillation_timeout_, oscillation_distance_;
@@ -215,6 +217,7 @@ namespace move_base {
       boost::mutex planner_mutex_;
       boost::condition_variable planner_cond_;
       geometry_msgs::PoseStamped planner_goal_;
+      std::vector<geometry_msgs::PoseStamped> planner_goals_;
       boost::thread* planner_thread_;
 
 

@@ -87,6 +87,7 @@ namespace move_base {
     //for comanding the base
     vel_pub_ = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
     current_goal_pub_ = private_nh.advertise<geometry_msgs::PoseStamped>("current_goal", 0 );
+    final_pub_ = private_nh.advertise<std_msgs::Int8>("final", 0 );
 
     ros::NodeHandle action_nh("move_base");
     action_goal_pub_ = action_nh.advertise<move_base_msgs::MoveBaseActionGoal>("goal", 1);
@@ -96,6 +97,8 @@ namespace move_base {
     //like nav_view and rviz
     ros::NodeHandle simple_nh("move_base_simple");
     goal_sub_ = simple_nh.subscribe<geometry_msgs::PoseStamped>("goal", 1, boost::bind(&MoveBase::goalCB, this, _1));
+    
+    goal_path_sub_ = simple_nh.subscribe<nav_msgs::Path>("update_path", 1, boost::bind(&MoveBase::updatePathCB, this, _1));
 
     //we'll assume the radius of the robot to be consistent with what's specified for the costmaps
     private_nh.param("local_costmap/inscribed_radius", inscribed_radius_, 0.325);
@@ -618,6 +621,15 @@ namespace move_base {
       }
     }
   }
+  
+  void MoveBase::updatePathCB(const nav_msgs::PathConstPtr& msg)
+  {
+      boost::unique_lock<boost::mutex> lock(planner_mutex_);
+	  planner_goals_.clear();
+	  for(size_t i=0; i<msg->poses.size(); i++)
+		planner_goals_.push_back( goalToGlobalFrame(msg->poses[i]) );
+      lock.unlock();
+  }
 
   void MoveBase::executeCb(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal)
   {
@@ -860,9 +872,21 @@ namespace move_base {
           //disable the planner thread
           boost::unique_lock<boost::mutex> lock(planner_mutex_);
           runPlanner_ = false;
-          lock.unlock();
+          
+			as_->setSucceeded(move_base_msgs::MoveBaseResult(), "Goal reached.");
+          if(planner_goals_.size()>0) {
+			  
+    move_base_msgs::MoveBaseActionGoal action_goal;
+	action_goal.header = planner_goals_.front().header;
+	action_goal.goal.target_pose = planner_goals_.front();
 
-          as_->setSucceeded(move_base_msgs::MoveBaseResult(), "Goal reached.");
+    action_goal_pub_.publish(action_goal);
+			  planner_goals_.erase(planner_goals_.begin());
+		  }
+		  else
+			final_pub_.publish(std_msgs::Int8());
+          lock.unlock();
+		  
           return true;
         }
 
