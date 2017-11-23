@@ -44,7 +44,7 @@ class MapGenerator
 {
 
   public:
-    MapGenerator(const std::string& mapname) : mapname_(mapname), saved_map_(false)
+    MapGenerator(const std::string& mapname, const bool raw=false) : mapname_(mapname), saved_map_(false), raw_(raw)
     {
       ros::NodeHandle n;
       ROS_INFO("Waiting for the map");
@@ -73,7 +73,9 @@ class MapGenerator
       for(unsigned int y = 0; y < map->info.height; y++) {
         for(unsigned int x = 0; x < map->info.width; x++) {
           unsigned int i = x + (map->info.height - y - 1) * map->info.width;
-          if (map->data[i] == 0) { //occ [0,0.1)
+          if(raw_) {
+			fputc(map->data[i], out);
+          } else if (map->data[i] == 0) { //occ [0,0.1)
             fputc(254, out);
           } else if (map->data[i] == +100) { //occ (0.65,1]
             fputc(000, out);
@@ -123,6 +125,7 @@ free_thresh: 0.196
     std::string mapname_;
     ros::Subscriber map_sub_;
     bool saved_map_;
+    bool raw_;
 
 };
 
@@ -134,6 +137,7 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "map_saver");
   std::string mapname = "map";
+  bool raw=false;
 
   for(int i=1; i<argc; i++)
   {
@@ -152,6 +156,10 @@ int main(int argc, char** argv)
         return 1;
       }
     }
+    else if(!strcmp(argv[i], "-r"))
+    {
+		raw = true;
+	}
     else
     {
       puts(USAGE);
@@ -159,7 +167,7 @@ int main(int argc, char** argv)
     }
   }
 
-  MapGenerator mg(mapname);
+  MapGenerator mg(mapname, raw);
 
   while(!mg.saved_map_ && ros::ok())
     ros::spinOnce();
